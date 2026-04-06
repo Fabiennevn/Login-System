@@ -4,8 +4,8 @@ import bcrypt from "bcrypt";
 const db=new pg.Client({
     host:"localhost",
     user:"postgres",
-    database:"loginSystem",
-    password:"Postgres#2023",
+    database:"did-poc",
+    password:"did-poc",
     port:"5432",
 })
 db.connect();
@@ -34,7 +34,7 @@ export async function signupUser(req,res) {
         password: req.body.password,
     }
     try {
-        const checkUserRegistered = await db.query("SELECT FROM users WHERE email=$1;",[signupData.email]);
+        const checkUserRegistered = await db.query("SELECT * FROM users WHERE email=$1;",[signupData.email]);
         if(checkUserRegistered.rows.length > 0) {
             res.redirect("/user/?message=User%20already%20registered.%20Please%20login.")
         }else {

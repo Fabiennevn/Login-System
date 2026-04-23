@@ -1,11 +1,21 @@
 <%- include("./partials/header.ejs") %>
 
-<div class="wrapper">
-    <div class="content rounded">
-        <p class="lead display-6">
-            ho gya login
-        </p>
-    </div>
-</div>
+    <div class="wrapper">
+        <div class="content rounded">
 
-<%- include("./partials/footer.ejs") %>
+            <p class="lead display-6">
+                Login erfolgreich
+            </p>
+
+            <h3>DID Document</h3>
+
+            <% if (didDocument) { %>
+                <pre><%= JSON.stringify(didDocument, null, 2) %></pre>
+                <% } else { %>
+                    <p>Kein DID Document geladen</p>
+                    <% } %>
+
+        </div>
+    </div>
+
+    <%- include("./partials/footer.ejs") %>

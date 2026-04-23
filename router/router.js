@@ -3,40 +3,51 @@
 import express from "express";
 const router = express.Router();
 
-import 
-{   destroySession,
-    generateChallenge,
+import {
+destroySession,
+generateChallenge,
 isAuthenticated,
 loginUser,
-    signupUser
+signupUser
 } from "../controller/auth.js";
 
-router.get("/", (req,res) => {
+router.get("/", (req, res) => {
     // Check if there's a message query parameter (e.g., for displaying error/success messages on the signup page)
     const message = req.query.message; // e.g. cannot get /user 
-    
-    // Nonce generieren
-    const nonce = generateChallenge();
 
-    // In Session speichern (wichtig!)
-    req.session.nonce = nonce;
+    let challenge = req.session.challenge;
 
-    res.render("home.ejs", { 
+    // Nur neu erstellen, wenn keine existiert oder abgelaufen
+    if (!challenge || Date.now() > challenge.expiresAt) {
+        const nonce = generateChallenge();
+
+        challenge = {
+            value: nonce,
+            createdAt: Date.now(),
+            expiresAt: Date.now() + (5 * 60 * 1000)
+        };
+
+        req.session.challenge = challenge;
+    }
+    res.render("home.ejs", {
         message,
-        nonce 
+        nonce: challenge.value
     });
 })
 
-router.post("/login",loginUser)
+router.post("/login", loginUser)
 
-router.get("/signup",(req,res)=> {
+router.get("/signup", (req, res) => {
     res.render("signup.ejs")
 })
 
-router.post("/signup",signupUser);
+router.post("/signup", signupUser);
 
-router.get("/result", isAuthenticated, (req,res) => {
-    res.render("result.ejs");
+router.get("/result", isAuthenticated, (req, res) => {
+    res.render("result.ejs", {
+        user: req.session.user,
+        didDocument: req.session.didDocument
+    });
 });
 
 router.post("/logout", destroySession);

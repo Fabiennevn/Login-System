@@ -3,17 +3,23 @@
 <div class="wrapper">
     <div class="content rounded">
         <form method="post" action="/signup" class="d-flex flex-column">
-            <img class="mb-4" src="/assets/user.svg" alt="user" width="72" height="57">
-            <h1 class="h3 mb-3 fw-normal">Please sign up</h1>
+            <img class="mb-4" src="/assets/user.svg" alt="user" width="72" height="57">        
+            <% if (locals.message) { %>
+              <h1 class="h3 mb-3 fw-normal"> <%= message %> </h1>
+            <% }else { %>
+              <h1 class="h3 mb-3 fw-normal">Please sign up by entering your DID and your signed challenge</h1>
+              <p><%= nonce %></p>
+            <% }%>
+
         
-            <div class="form-floating">
-              <input type="text" class="form-control" id="floatingInput" placeholder="Choose a username" name="username">
-              <label for="floatingInput">Username</label>
+            <div class="form-floating mb-3">
+              <input type="text" class="form-control" id="floatingDid" placeholder="Your DID" name="did">
+              <label for="floatingPassword">Your DID</label>
             </div>
 
-            <div class="form-floating">
-              <input type="text" class="form-control" id="floatingInput" placeholder="DID" name="did">
-              <label for="floatingInput">DID</label>
+            <div class="form-floating mb-3">
+              <input type="text" class="form-control" id="floatingChallenge" placeholder="signedChallenge" name="signedChallenge">
+              <label for="floatingPassword">Signed Challenge</label>
             </div>
         
             <button class="btn btn-primary w-80 py-2" type="submit">Sign up</button>

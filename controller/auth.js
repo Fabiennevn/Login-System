@@ -13,6 +13,7 @@ import { verify } from "@stablelib/ed25519";
 import { base58btc } from "multiformats/bases/base58";
 import { prepareDataForSigning } from "didwebvh-ts";
 
+
 const db = new pg.Client({
     host: "localhost",
     user: "postgres",
@@ -24,29 +25,20 @@ db.connect()
     .then(() => console.log("DB connected"))
     .catch(err => console.error("DB connection failed:", err.message));
 
-
-
-
 export function generateChallenge() {
     return crypto.randomBytes(32).toString('hex'); // Generate a random challenge (32 bytes converted to hex string)
 
 }
 
-function decodePublicKey(multibaseKey) {
-    const bytes = base58btc.decode(multibaseKey);
-
-    // remove multicodec prefix (first 2 bytes for ed25519)
-    return bytes.slice(2);
-}
-
-function decodeSignature(signature) {
-    return base58btc.decode(signature);
+function prepareEncodedData(input) {
+    return base58btc.decode(input);
 }
 
 function verifySignature(nonce, signature, publicKey) {
-    const decodedPublicKey = decodePublicKey(publicKey);
-    const decodedSignature = decodeSignature(signature);
+    const decodedPublicKey = prepareEncodedData(publicKey).slice(2); // Remove the first 2 bytes (multicodec prefix)
+    const decodedSignature = prepareEncodedData(signature);
 
+    // hex to bytes
     const message = Buffer.from(nonce, "hex");
 
     return verify(
@@ -54,6 +46,18 @@ function verifySignature(nonce, signature, publicKey) {
         message,
         decodedSignature
     );
+}
+
+function checkExpiry(challenge) {
+    return Date.now() > challenge.expiresAt;
+}
+
+function consoleLogMessage(message, logInput) {
+    console.log("***************************************************************");
+    console.log(" ");
+    console.log(message, logInput);
+    console.log(" ");
+    console.log("***************************************************************");
 }
 
 export async function loginUser(req, res) {
@@ -71,96 +75,76 @@ export async function loginUser(req, res) {
     }
 
     try {
-
         const challenge = req.session.challenge;
 
         if (!challenge) {
             return res.status(400).json({ error: "Keine Challenge vorhanden" });
         }
 
-        // Expiry prüfen
-        if (Date.now() > challenge.expiresAt) {
+        // If challenge is expired, delete it from session and return error
+        if (checkExpiry(challenge)) {
             delete req.session.challenge;
             return res.status(400).json({ error: "Challenge abgelaufen" });
         }
 
         // 2. DID auflösen
-        //console.log(loginData.did);
         const response = await fetch(`http://localhost:8080/1.0/identifiers/${loginData.did}`);
-        //console.log("DID Resolution Response: ", response);
-        //console.log("DID Resolution Response CONTENT: ", response);
+        consoleLogMessage("DID Resolution Response: ", response);
+
         if (!response.ok) {
             return res.status(response.status).json({ error: "DID nicht gefunden" });
         }
 
         const data = await response.json();
 
-        //console.log("DID Document: ", data.didDocument);
-
-        // 3. Optional: Nur relevante Daten extrahieren
         const didDocument = data.didDocument;
+        consoleLogMessage("DID Document: ", didDocument);
 
         if (!didDocument) {
             return res.status(500).json({ error: "Ungültige DID-Antwort" });
         }
 
-        // 🔑 Beispiel: Public Key extrahieren (für Challenge später!)
+        // get first element out of verification method array
         const verificationMethod = didDocument.verificationMethod?.[0];
-        //console.log("Verification Method: ", verificationMethod);
 
-        console.log("Nonce in Session: ", challenge.value);
-        console.log("Signed Challenge: ", loginData.signedChallenge);
-        console.log("Verification Method: ", verificationMethod);
-        console.log("Public Key: ", verificationMethod.publicKeyMultibase);
+        consoleLogMessage("Nonce in Session: ", challenge.value);
+        consoleLogMessage("Signed Challenge: ", loginData.signedChallenge);
+        consoleLogMessage("Verification Method: ", verificationMethod);
+        consoleLogMessage("Public Key: ", verificationMethod.publicKeyMultibase);
 
         const isSignatureValid = await verifySignature(challenge.value, loginData.signedChallenge, verificationMethod.publicKeyMultibase);
 
         if (!isSignatureValid) {
             delete req.session.challenge;
             return res.status(400).json({ error: "Ungültige Signatur" });
-        } else {
-            console.log("Signature valid! User authenticated.");
-            delete req.session.challenge;
-            req.session.didDocument = didDocument; // Store DID Document in session for later use
         }
 
-        //console.log("DID Document: ", didDocument);
-        //console.log("Verification Method: ", verificationMethod);
+        delete req.session.challenge;
+        req.session.didDocument = didDocument; // Store DID Document in session for later use
+
+        const result = await db.query("SELECT did, username FROM users WHERE did=$1;", [loginData.did])
+        /*
+        result.rows.forEach(row => {
+            console.log("DB DID: " + row.did);
+        })*/
+        if (result.rows.length !== 1) {
+            return res.redirect("/?message=Invalid%20credentials.%20Please%20try%20again.")
+        }
+
+        // Store user information in session (excluding password) w3schools.com/nodejs/nodejs_api_auth.asp
+        req.session.user = {
+            did: result.rows[0].did,
+            username: result.rows[0].username
+        };
+
+        // Redirect to result page after successful login
+        return res.redirect("/result");
 
     } catch (err) {
         console.error("Error during DID resolution: ", err.message);
         return res.status(500).json({ error: err.message });
     }
-
-
-    try {
-        const result = await db.query("SELECT * FROM users WHERE did=$1;", [loginData.did])
-        result.rows.forEach(row => {
-            console.log("DB DID: " + row.did);
-        })
-        if (result.rows.length === 1 && result.rows[0].did === loginData.did) {
-            console.log("lOGIN DATA did: " + loginData.did + " and " + loginData.signedChallenge);
-
-
-            // Store user information in session (excluding password) w3schools.com/nodejs/nodejs_api_auth.asp
-            req.session.user = {
-                did: result.rows[0].did,
-                username: result.rows[0].username
-            };
-
-            // Redirect to result page after successful login
-            return res.redirect("/result");
-        } else {
-            console.log("lOGIN DATA did: " + loginData.did);
-            return res.redirect("/?message=Invalid%20credentials.%20Please%20try%20again.")
-        }
-    } catch (error) {
-        console.log(error);
-        return res.status(500).send("DB error");
-    }
 }
-
-
 
 /*
 export async function signupUser(req, res) {
@@ -192,11 +176,48 @@ export async function signupUser(req, res) {
 
 export async function signupUser(req, res) {
     const signupData = {
-        username: req.body.username,
         did: req.body.did,
+        signedChallenge: req.body.signedChallenge
     };
+    
+    if (!signupData.did) {
+        return res.status(400).json({ error: "DID fehlt" });
+    }
+
+    if (!signupData.signedChallenge) {
+        return res.status(400).json({ error: "Signatur fehlt" });
+    }
 
     try {
+        const challenge = req.session.challenge;
+
+        if (!challenge) {
+            return res.status(400).json({ error: "Keine Challenge vorhanden" });
+        }
+
+        // If challenge is expired, delete it from session and return error
+        if (checkExpiry(challenge)) {
+            delete req.session.challenge;
+            return res.status(400).json({ error: "Challenge abgelaufen" });
+        }
+
+        // 2. DID auflösen
+        const response = await fetch(`http://localhost:8080/1.0/identifiers/${signupData.did}`);
+        consoleLogMessage("DID Resolution Response: ", response);
+
+        if (!response.ok) {
+            return res.status(response.status).json({ error: "DID nicht gefunden" });
+        }
+
+        const data = await response.json();
+
+        const didDocument = data.didDocument;
+        consoleLogMessage("DID Document: ", didDocument);
+
+        if (!didDocument) {
+            return res.status(500).json({ error: "Ungültige DID-Antwort" });
+        }
+
         const checkUserRegistered = await db.query(
             "SELECT * FROM users WHERE did=$1;",
             [signupData.did]
@@ -205,6 +226,24 @@ export async function signupUser(req, res) {
         if (checkUserRegistered.rows.length > 0) {
             return res.redirect("/?message=User%20already%20registered.%20Please%20login.");
         }
+
+        // get first element out of verification method array
+        const verificationMethod = didDocument.verificationMethod?.[0];
+
+        consoleLogMessage("Nonce in Session: ", challenge.value);
+        consoleLogMessage("Signed Challenge: ", signupData.signedChallenge);
+        consoleLogMessage("Verification Method: ", verificationMethod);
+        consoleLogMessage("Public Key: ", verificationMethod.publicKeyMultibase);
+
+        const isSignatureValid = await verifySignature(challenge.value, signupData.signedChallenge, verificationMethod.publicKeyMultibase);
+
+        if (!isSignatureValid) {
+            delete req.session.challenge;
+            return res.status(400).json({ error: "Ungültige Signatur" });
+        }
+
+        delete req.session.challenge;
+        req.session.didDocument = didDocument; // Store DID Document in session for later use
 
         await db.query(
             "INSERT INTO users(username, did) VALUES($1, $2);",

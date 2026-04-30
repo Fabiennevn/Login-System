@@ -38,7 +38,27 @@ router.get("/", (req, res) => {
 router.post("/login", loginUser)
 
 router.get("/signup", (req, res) => {
-    res.render("signup.ejs")
+    // Check if there's a message query parameter (e.g., for displaying error/success messages on the signup page)
+    const message = req.query.message; // e.g. cannot get /user 
+
+    let challenge = req.session.challenge;
+
+    // Nur neu erstellen, wenn keine existiert oder abgelaufen
+    if (!challenge || Date.now() > challenge.expiresAt) {
+        const nonce = generateChallenge();
+
+        challenge = {
+            value: nonce,
+            createdAt: Date.now(),
+            expiresAt: Date.now() + (5 * 60 * 1000)
+        };
+
+        req.session.challenge = challenge;
+    }
+    res.render("signup.ejs", {
+        message,
+        nonce: challenge.value
+    })
 })
 
 router.post("/signup", signupUser);

@@ -44,6 +44,7 @@ router.get("/signup", (req, res) => {
     let challenge = req.session.challenge;
 
     // Nur neu erstellen, wenn keine existiert oder abgelaufen
+    
     if (!challenge || Date.now() > challenge.expiresAt) {
         const nonce = generateChallenge();
 
@@ -82,7 +83,7 @@ router.get("/api/resolve", async (req, res) => {
 
     try {
         // 2. DID auflösen
-        const response = await fetch(`http://localhost:8080/1.0/identifiers/${did}`);
+        const response = await fetch(`http://localhost:8081/1.0/identifiers/${did}`);
 
         if (!response.ok) {
             return res.status(response.status).json({ error: "DID nicht gefunden" });

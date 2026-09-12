@@ -47,3 +47,23 @@ export async function registerLocalUser(signupData, req, res) {
         console.log(error)
     }
 }
+
+
+
+// DID-Auflösung
+app.get("/api/resolve", async (req, res) => {
+  const { did } = req.query;
+
+  if (!req.session.user) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const response = await fetch(`http://localhost:8080/1.0/identifiers/${did}`);
+    if (!response.ok) return res.status(response.status).json({ error: "DID nicht gefunden" });
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+

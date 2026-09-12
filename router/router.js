@@ -1,26 +1,113 @@
+// https://expressjs.com/en/guide/routing.html
+
 import express from "express";
 const router = express.Router();
 
-import 
-{   loginUser,
-    signupUser
+import {
+destroySession,
+generateChallenge,
+isAuthenticated,
+loginUser,
+signupUser
 } from "../controller/auth.js";
 
-router.get("/",(req,res) => {
-    const message = req.query.message;
-    res.render("home.ejs",{message});
+router.get("/", (req, res) => {
+    const message = req.query.message; // e.g. cannot get /user 
+
+    let challenge = req.session.challenge;
+
+    // Nur neu erstellen, wenn keine existiert oder abgelaufen
+    if (!challenge || Date.now() > challenge.expiresAt) {
+        const nonce = generateChallenge();
+
+        challenge = {
+            value: nonce,
+            createdAt: Date.now(),
+            expiresAt: Date.now() + (5 * 60 * 1000)
+        };
+
+        req.session.challenge = challenge;
+    }
+    res.render("home.ejs", {
+        message,
+        nonce: challenge.value
+    });
 })
 
-router.post("/login",loginUser)
+router.post("/login", loginUser)
 
-router.get("/signup",(req,res)=> {
-    res.render("signup.ejs")
+router.get("/signup", (req, res) => {
+    
+    const message = req.query.message; // e.g. cannot get /user 
+
+    let challenge = req.session.challenge;
+
+    // Nur neu erstellen, wenn keine existiert oder abgelaufen
+    
+    if (!challenge || Date.now() > challenge.expiresAt) {
+        const nonce = generateChallenge();
+
+        challenge = {
+            value: nonce,
+            createdAt: Date.now(),
+            expiresAt: Date.now() + (5 * 60 * 1000)
+        };
+
+        req.session.challenge = challenge;
+    }
+    res.render("signup.ejs", {
+        message,
+        nonce: challenge.value
+    })
 })
 
-router.post("/signup",signupUser);
+router.post("/signup", signupUser);
 
-router.get("/result",(req,res) => {
-    res.render("result.ejs");
-})
+router.get("/result", isAuthenticated, (req, res) => {
+    res.render("result.ejs", {
+        user: req.session.user,
+        didDocument: req.session.didDocument
+    });
+});
+
+router.post("/logout", destroySession);
+
+router.get("/api/resolve", async (req, res) => {
+    const { did } = req.query;
+
+    // 1. Input validieren
+    if (!did) {
+        return res.status(400).json({ error: "DID fehlt" });
+    }
+
+    try {
+        // 2. DID auflösen
+        const response = await fetch(`http://localhost:8081/1.0/identifiers/${did}`);
+
+        if (!response.ok) {
+            return res.status(response.status).json({ error: "DID nicht gefunden" });
+        }
+
+        const data = await response.json();
+
+        // 3. Optional: Nur relevante Daten extrahieren
+        const didDocument = data.didDocument;
+
+        if (!didDocument) {
+            return res.status(500).json({ error: "Ungültige DID-Antwort" });
+        }
+
+        const verificationMethod = didDocument.verificationMethod?.[0];
+
+        res.json({
+            did: did,
+            didDocument,
+            verificationMethod
+        });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 export default router;

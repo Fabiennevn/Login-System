@@ -12,7 +12,6 @@ signupUser
 } from "../controller/auth.js";
 
 router.get("/", (req, res) => {
-    // Check if there's a message query parameter (e.g., for displaying error/success messages on the signup page)
     const message = req.query.message; // e.g. cannot get /user 
 
     let challenge = req.session.challenge;
@@ -38,12 +37,13 @@ router.get("/", (req, res) => {
 router.post("/login", loginUser)
 
 router.get("/signup", (req, res) => {
-    // Check if there's a message query parameter (e.g., for displaying error/success messages on the signup page)
+    
     const message = req.query.message; // e.g. cannot get /user 
 
     let challenge = req.session.challenge;
 
     // Nur neu erstellen, wenn keine existiert oder abgelaufen
+    
     if (!challenge || Date.now() > challenge.expiresAt) {
         const nonce = generateChallenge();
 
@@ -82,7 +82,7 @@ router.get("/api/resolve", async (req, res) => {
 
     try {
         // 2. DID auflösen
-        const response = await fetch(`http://localhost:8080/1.0/identifiers/${did}`);
+        const response = await fetch(`http://localhost:8081/1.0/identifiers/${did}`);
 
         if (!response.ok) {
             return res.status(response.status).json({ error: "DID nicht gefunden" });
@@ -97,7 +97,6 @@ router.get("/api/resolve", async (req, res) => {
             return res.status(500).json({ error: "Ungültige DID-Antwort" });
         }
 
-        // 🔑 Beispiel: Public Key extrahieren (für Challenge später!)
         const verificationMethod = didDocument.verificationMethod?.[0];
 
         res.json({

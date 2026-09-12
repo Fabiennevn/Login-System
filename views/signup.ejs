@@ -10,8 +10,10 @@
               <h1 class="h3 mb-3 fw-normal">Please sign up by entering your DID and your signed challenge</h1>
               <p><%= nonce %></p>
             <% }%>
-
-        
+            <div class="form-floating mb-3">
+              <input type="text" class="form-control" id="floatingUsername" placeholder="Your Username" name="username">
+              <label for="floatingPassword">Your Username</label>
+            </div>
             <div class="form-floating mb-3">
               <input type="text" class="form-control" id="floatingDid" placeholder="Your DID" name="did">
               <label for="floatingPassword">Your DID</label>

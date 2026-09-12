@@ -5,11 +5,6 @@ import crypto from "crypto";
 import { verify } from "@stablelib/ed25519";
 import { base58btc } from "multiformats/bases/base58";
 
-
-// ============================================================
-// DATABASE
-// ============================================================
-
 const db = new pg.Client({
     host: "localhost",
     user: "postgres",
@@ -24,19 +19,9 @@ db.connect()
         console.error("DB connection failed:", err.message)
     );
 
-
-// ============================================================
-// CHALLENGE GENERATION
-// ============================================================
-
 export function generateChallenge() {
     return crypto.randomBytes(32).toString("hex");
 }
-
-
-// ============================================================
-// HELPER FUNCTIONS
-// ============================================================
 
 function prepareEncodedData(input) {
     return base58btc.decode(input);
@@ -92,22 +77,12 @@ function consoleLogMessage(message, logInput) {
     );
 }
 
-
-// ============================================================
-// LOGIN
-// ============================================================
-
 export async function loginUser(req, res) {
 
     const loginData = {
         did: req.body.did,
         signedChallenge: req.body.signedChallenge
     };
-
-
-    // --------------------------------------------------------
-    // Validate request
-    // --------------------------------------------------------
 
     if (!loginData.did) {
         return res.status(400).json({
@@ -125,9 +100,6 @@ export async function loginUser(req, res) {
 
     try {
 
-        // ----------------------------------------------------
-        // 1. Get challenge from session
-        // ----------------------------------------------------
 
         const challenge =
             req.session.challenge;
@@ -139,11 +111,6 @@ export async function loginUser(req, res) {
             });
         }
 
-
-        // ----------------------------------------------------
-        // 2. Check challenge expiry
-        // ----------------------------------------------------
-
         if (checkExpiry(challenge)) {
 
             delete req.session.challenge;
@@ -153,10 +120,6 @@ export async function loginUser(req, res) {
             });
         }
 
-
-        // ----------------------------------------------------
-        // 3. Resolve DID
-        // ----------------------------------------------------
 
         const response = await fetch(
             `http://localhost:8081/1.0/identifiers/${loginData.did}`
@@ -200,11 +163,6 @@ export async function loginUser(req, res) {
             });
         }
 
-
-        // ----------------------------------------------------
-        // 4. Get verification method
-        // ----------------------------------------------------
-
         const verificationMethod =
             didDocument.verificationMethod?.[0];
 
@@ -241,11 +199,6 @@ export async function loginUser(req, res) {
             verificationMethod.publicKeyMultibase
         );
 
-
-        // ----------------------------------------------------
-        // 5. Verify signature
-        // ----------------------------------------------------
-
         const isSignatureValid =
             verifySignature(
                 challenge.value,
@@ -263,11 +216,6 @@ export async function loginUser(req, res) {
             });
         }
 
-
-        // ----------------------------------------------------
-        // 6. Check if user exists
-        // ----------------------------------------------------
-
         const result =
             await db.query(
                 `SELECT did, username
@@ -284,11 +232,6 @@ export async function loginUser(req, res) {
             );
         }
 
-
-        // ----------------------------------------------------
-        // 7. Authentication successful
-        // ----------------------------------------------------
-
         delete req.session.challenge;
 
 
@@ -300,11 +243,6 @@ export async function loginUser(req, res) {
 
         req.session.didDocument =
             didDocument;
-
-
-        // ----------------------------------------------------
-        // 8. Save session explicitly
-        // ----------------------------------------------------
 
         req.session.save((err) => {
 
@@ -320,11 +258,6 @@ export async function loginUser(req, res) {
                         "Session konnte nicht gespeichert werden"
                 });
             }
-
-
-            // ------------------------------------------------
-            // 9. Redirect
-            // ------------------------------------------------
 
             return res.redirect("/result");
 
@@ -345,11 +278,6 @@ export async function loginUser(req, res) {
     }
 }
 
-
-// ============================================================
-// SIGNUP
-// ============================================================
-
 export async function signupUser(req, res) {
 
     const signupData = {
@@ -357,11 +285,6 @@ export async function signupUser(req, res) {
         did: req.body.did,
         signedChallenge: req.body.signedChallenge
     };
-
-
-    // --------------------------------------------------------
-    // Validate request
-    // --------------------------------------------------------
 
     if (!signupData.username) {
 
@@ -389,10 +312,6 @@ export async function signupUser(req, res) {
 
     try {
 
-        // ----------------------------------------------------
-        // 1. Get challenge from session
-        // ----------------------------------------------------
-
         const challenge =
             req.session.challenge;
 
@@ -404,11 +323,6 @@ export async function signupUser(req, res) {
             });
         }
 
-
-        // ----------------------------------------------------
-        // 2. Check challenge expiry
-        // ----------------------------------------------------
-
         if (checkExpiry(challenge)) {
 
             delete req.session.challenge;
@@ -417,11 +331,6 @@ export async function signupUser(req, res) {
                 error: "Challenge abgelaufen"
             });
         }
-
-
-        // ----------------------------------------------------
-        // 3. Resolve DID
-        // ----------------------------------------------------
 
         const response = await fetch(
             `http://localhost:8081/1.0/identifiers/${signupData.did}`
@@ -465,11 +374,6 @@ export async function signupUser(req, res) {
             });
         }
 
-
-        // ----------------------------------------------------
-        // 4. Check whether DID is already registered
-        // ----------------------------------------------------
-
         const checkUserRegistered =
             await db.query(
                 `SELECT *
@@ -485,11 +389,6 @@ export async function signupUser(req, res) {
                 "/?message=User%20already%20registered.%20Please%20login."
             );
         }
-
-
-        // ----------------------------------------------------
-        // 5. Get verification method
-        // ----------------------------------------------------
 
         const verificationMethod =
             didDocument.verificationMethod?.[0];
@@ -527,11 +426,6 @@ export async function signupUser(req, res) {
             verificationMethod.publicKeyMultibase
         );
 
-
-        // ----------------------------------------------------
-        // 6. Verify signature
-        // ----------------------------------------------------
-
         const isSignatureValid =
             verifySignature(
                 challenge.value,
@@ -549,17 +443,7 @@ export async function signupUser(req, res) {
             });
         }
 
-
-        // ----------------------------------------------------
-        // 7. Challenge was successfully used
-        // ----------------------------------------------------
-
         delete req.session.challenge;
-
-
-        // ----------------------------------------------------
-        // 8. Insert user into database
-        // ----------------------------------------------------
 
         const result =
             await db.query(
@@ -577,10 +461,6 @@ export async function signupUser(req, res) {
             result.rows[0];
 
 
-        // ----------------------------------------------------
-        // 9. Store authenticated user in session
-        // ----------------------------------------------------
-
         req.session.user = {
             username: user.username,
             did: user.did
@@ -590,11 +470,6 @@ export async function signupUser(req, res) {
         // Store DID document as well
         req.session.didDocument =
             didDocument;
-
-
-        // ----------------------------------------------------
-        // 10. Save session explicitly
-        // ----------------------------------------------------
 
         req.session.save((err) => {
 
@@ -611,11 +486,6 @@ export async function signupUser(req, res) {
                         "Session konnte nicht gespeichert werden"
                 });
             }
-
-
-            // ------------------------------------------------
-            // 11. Redirect to protected result page
-            // ------------------------------------------------
 
             return res.redirect("/result");
 
@@ -637,10 +507,6 @@ export async function signupUser(req, res) {
 }
 
 
-// ============================================================
-// AUTHENTICATION MIDDLEWARE
-// ============================================================
-
 export function isAuthenticated(req, res, next) {
 
     if (req.session.user) {
@@ -654,11 +520,6 @@ export function isAuthenticated(req, res, next) {
         message: "Unauthorized"
     });
 }
-
-
-// ============================================================
-// LOGOUT
-// ============================================================
 
 export function destroySession(req, res) {
 

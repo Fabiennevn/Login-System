@@ -12,7 +12,6 @@ signupUser
 } from "../controller/auth.js";
 
 router.get("/", (req, res) => {
-    // Check if there's a message query parameter (e.g., for displaying error/success messages on the signup page)
     const message = req.query.message; // e.g. cannot get /user 
 
     let challenge = req.session.challenge;
@@ -38,7 +37,7 @@ router.get("/", (req, res) => {
 router.post("/login", loginUser)
 
 router.get("/signup", (req, res) => {
-    // Check if there's a message query parameter (e.g., for displaying error/success messages on the signup page)
+    
     const message = req.query.message; // e.g. cannot get /user 
 
     let challenge = req.session.challenge;
@@ -98,7 +97,6 @@ router.get("/api/resolve", async (req, res) => {
             return res.status(500).json({ error: "Ungültige DID-Antwort" });
         }
 
-        // 🔑 Beispiel: Public Key extrahieren (für Challenge später!)
         const verificationMethod = didDocument.verificationMethod?.[0];
 
         res.json({
